@@ -1,18 +1,11 @@
 import os
 import traceback
-import sys
-from pathlib import Path
 
-# Setup search path for siblings using pathlib
-self_dir = Path(__file__).resolve().parent
-if str(self_dir) not in sys.path:
-    sys.path.insert(0, str(self_dir))
-
+# Import services with fallback path support
 GeminiService = None
 HuggingFaceService = None
 OpenRouterService = None
 
-# Attempt imports with robust fallback order
 try:
     from gemini_service import GeminiService
     from huggingface_service import HuggingFaceService

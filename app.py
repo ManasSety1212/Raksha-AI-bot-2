@@ -9,18 +9,12 @@ import time
 import sys
 from datetime import datetime
 from dotenv import load_dotenv
+from pathlib import Path
 
 # Load Environment Variables
 load_dotenv()
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-print(f"[Debug] BASE_DIR: {BASE_DIR}")
-try:
-    print(f"[Debug] Directory contents: {os.listdir(BASE_DIR)}")
-    if os.path.exists(os.path.join(BASE_DIR, 'backend')):
-        print(f"[Debug] backend contents: {os.listdir(os.path.join(BASE_DIR, 'backend'))}")
-except Exception as list_err:
-    print(f"[Debug] Failed listing directory: {list_err}")
+BASE_DIR = Path(__file__).resolve().parent
 
 # Initialize App
 app = Flask(__name__)
@@ -30,65 +24,54 @@ socketio = SocketIO(app, cors_allowed_origins="*", max_http_buffer_size=5_000_00
 
 # --- AI & FIREBASE CONFIG ---
 AI_PROVIDER = "gemini"
-print(f"Provider: {AI_PROVIDER}")
 
-# ─── Robust import path detection for varying case-sensitive layouts ───
-detected_bot_parent = None
-try:
-    for root, dirs, files in os.walk(BASE_DIR):
-        # Ignore virtual environments, node_modules, and git directories
-        if any(ignored in root for ignored in ['.venv', 'venv', 'node_modules', '.git', '.expo']):
-            continue
-        if 'huggingface_service.py' in files or 'firebase_service.py' in files:
-            # Found one of the bot files. Add its parent (like backEnd or backend) to search paths
-            parent_dir = os.path.dirname(root)
-            if parent_dir not in sys.path:
-                sys.path.append(parent_dir)
-                print(f"[Import Debug] Added parent folder to sys.path: {parent_dir}")
-            if root not in sys.path:
-                sys.path.append(root)
-                print(f"[Import Debug] Added module folder to sys.path: {root}")
-except Exception as p_err:
-    print(f"[Import Debug] Error during os.walk path discovery: {p_err}")
-
-sys.path.append(os.path.join(BASE_DIR, 'backend'))
-sys.path.append(os.path.join(BASE_DIR, 'backEnd'))
-sys.path.append(BASE_DIR)
-
-HuggingFaceService = None
-GeminiService = None
+# --- IMPORT SYSTEM REFACTOR ---
 AIService = None
+GeminiService = None
+HuggingFaceService = None
 RakshaFirebaseService = None
 StudyPlanPDFGenerator = None
+OpenRouterService = None
 
-# Attempt AI implementation imports with fallbacks
 try:
-    from services.ai_service import AIService
-    from services.gemini_service import GeminiService
-    from services.huggingface_service import HuggingFaceService
-    from raksha_bot.firebase_service import RakshaFirebaseService
-    from raksha_bot.pdf_generator import StudyPlanPDFGenerator
-    print("[Import Success] Loaded successfully from services / raksha_bot.")
-except ImportError as e1:
+    from ai_service import AIService
+    from gemini_service import GeminiService
+    from huggingface_service import HuggingFaceService
+    from firebase_service import RakshaFirebaseService
+    from pdf_generator import StudyPlanPDFGenerator
+    from openrouter_service import OpenRouterService
+    print("[Imports] Flat layout detected")
+except ImportError:
     try:
         from backend.services.ai_service import AIService
         from backend.services.gemini_service import GeminiService
         from backend.services.huggingface_service import HuggingFaceService
         from backend.raksha_bot.firebase_service import RakshaFirebaseService
         from backend.raksha_bot.pdf_generator import StudyPlanPDFGenerator
-        print("[Import Success] Loaded successfully from backend.services / backend.raksha_bot.")
-    except ImportError as e2:
+        from backend.services.openrouter_service import OpenRouterService
+        print("[Imports] backend package detected")
+    except ImportError:
         try:
             from backEnd.services.ai_service import AIService
             from backEnd.services.gemini_service import GeminiService
             from backEnd.services.huggingface_service import HuggingFaceService
             from backEnd.raksha_bot.firebase_service import RakshaFirebaseService
             from backEnd.raksha_bot.pdf_generator import StudyPlanPDFGenerator
-            print("[Import Success] Loaded successfully from backEnd.services / backEnd.raksha_bot.")
-        except ImportError as e3:
-            print(f"[Warning] Bot modules not found. e1: {e1}, e2: {e2}, e3: {e3}")
-            import traceback
-            traceback.print_exc()
+            from backEnd.services.openrouter_service import OpenRouterService
+            print("[Imports] backend package detected")
+        except ImportError:
+            try:
+                from services.ai_service import AIService
+                from services.gemini_service import GeminiService
+                from services.huggingface_service import HuggingFaceService
+                from raksha_bot.firebase_service import RakshaFirebaseService
+                from raksha_bot.pdf_generator import StudyPlanPDFGenerator
+                from services.openrouter_service import OpenRouterService
+                print("[Imports] backend package detected")
+            except ImportError as e:
+                print(f"[Warning] Failed to import bot modules: {e}")
+                import traceback
+                traceback.print_exc()
 
 import firebase_admin
 from firebase_admin import credentials, firestore, storage
@@ -140,7 +123,7 @@ if 'AIService' in globals() and AIService is not None:
 
     # RakshaFirebaseService must never crash app startup
     try:
-        if firebase_initialized:
+        if firebase_initialized and RakshaFirebaseService is not None:
             bot_fb = RakshaFirebaseService()
         else:
             bot_fb = None
@@ -150,7 +133,10 @@ if 'AIService' in globals() and AIService is not None:
 
     # StudyPlanPDFGenerator must also be optional
     try:
-        pdf_gen = StudyPlanPDFGenerator()
+        if StudyPlanPDFGenerator is not None:
+            pdf_gen = StudyPlanPDFGenerator()
+        else:
+            pdf_gen = None
     except Exception as e:
         print("[PDF Generator Disabled]", e)
         pdf_gen = None
@@ -440,8 +426,6 @@ def get_nearby_police():
     lat = request.args.get('lat')
     lng = request.args.get('lng')
     
-    # In a real app, you would use Google Places API or a database here.
-    # For now, we return mock data based on the coordinates provided.
     print(f"[Nearby] Searching for police stations near {lat}, {lng}")
     
     mock_stations = [
