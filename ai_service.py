@@ -1,27 +1,39 @@
 import os
 import traceback
+import sys
+from pathlib import Path
 
-# Import services with fallback path support
+# Setup search path for siblings using pathlib
+self_dir = Path(__file__).resolve().parent
+if str(self_dir) not in sys.path:
+    sys.path.insert(0, str(self_dir))
+
 GeminiService = None
 HuggingFaceService = None
 OpenRouterService = None
 
+# Attempt imports with robust fallback order
 try:
-    from services.gemini_service import GeminiService
-    from services.huggingface_service import HuggingFaceService
-    from services.openrouter_service import OpenRouterService
+    from gemini_service import GeminiService
+    from huggingface_service import HuggingFaceService
+    from openrouter_service import OpenRouterService
 except ImportError:
     try:
-        from backend.services.gemini_service import GeminiService
-        from backend.services.huggingface_service import HuggingFaceService
-        from backend.services.openrouter_service import OpenRouterService
+        from services.gemini_service import GeminiService
+        from services.huggingface_service import HuggingFaceService
+        from services.openrouter_service import OpenRouterService
     except ImportError:
         try:
-            from backEnd.services.gemini_service import GeminiService
-            from backEnd.services.huggingface_service import HuggingFaceService
-            from backEnd.services.openrouter_service import OpenRouterService
-        except ImportError as err:
-            print(f"[AI Service Class] Critical imports failed: {err}")
+            from backend.services.gemini_service import GeminiService
+            from backend.services.huggingface_service import HuggingFaceService
+            from backend.services.openrouter_service import OpenRouterService
+        except ImportError:
+            try:
+                from backEnd.services.gemini_service import GeminiService
+                from backEnd.services.huggingface_service import HuggingFaceService
+                from backEnd.services.openrouter_service import OpenRouterService
+            except ImportError as err:
+                print(f"[AI Service Class] Critical imports failed: {err}")
 
 class AIService:
     def __init__(self):
